@@ -168,16 +168,48 @@ class IterableChecker(BaseChecker):
 ```
 - - - -
 #### Example
-Let’s verify whether condition defined in `if` statement is constant.
-[visit if]
-[check if.test]
-[check whether if.test is const node]
+```python
+class MyClass(object):
+    def __init__(self):
+        pass  # some implementation
+
+class DerivedClass1(MyClass):
+    def __init__(self):
+        # call superclass __init__ (?)
+        super(type(self), self).__init__()
+        self.x = 1
+       
+class DerivedClass2(MyClass):
+    def __init__(self):
+        # call superclass __init__ (?)
+        super(self.__class__, self).__init__()
+        self.x = 2
+```
+- Invalid when `DerivedClass1` or `DerivedClass2` is subclassed
+- Infinite recursion on instantiation of subclass
+- - - -
+#### Let's implement a checker for this case!
+Algorithm:
+1. When `FunctionDef` node is visited
+2. And this node is a method
+3. Find all `Call` nodes that belong to this method
+4. If called function is a `Name` node and it's value is **super**
+5. Check first argument of called function:
+   * If first argument is `Call` node and called function is a `Name` with value **type** and it's single argument is first argument of method (`self`) or 
+   * If first argument is an `Attribute` access, where accessed member is `__class__` and object is first argument of method (`self`)
+6. Emit a message 
+- - - -
+#### Obviously not *that* easy
+1. `FunctionDef` AST node is shared between methods and functions - how to differentiate between them?
+2. We don't want to walk through FunctionDef body and collect `Call` nodes blindly - sometimes they belong to another scope (e.g. another function defined in method)
+3. We implicitly assumed that `super` and `type` names are bound to original built-in functions. What if they are not?
 - - - -
 ## Inference engine
 - - - -
 ### Problem statement
+**`Name` node is used in some scope. What value it refers to?**
 - both token-based and AST-based checkers knows only about structure of the source code (token-based: how the code was written, AST-based: how the code was parsed)
-- it’s desirable to have actual knowledge about execution (even *without* actually running the code)
+- it’s desirable to have actual knowledge about execution (*without* running the code)
 ### Solution
 - astroid (AST on steroids) - [PyCQA/astroid: A common base representation of python source code for pylint and other projects](https://github.com/PyCQA/astroid)
 - - - -
