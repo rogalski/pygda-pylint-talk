@@ -1,6 +1,2 @@
-import sys
-
-if len(sys.argv) <= 1:
-    raise RuntimeError
-
-print('\n'.join(sys.argv[1:]))
+def is_something(a: int) -> bool:
+    return a >= 2

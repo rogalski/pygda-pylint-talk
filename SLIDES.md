@@ -133,12 +133,8 @@ Essentially, those checks rely on information which are missing from abstract sy
 `ast` module in standard library allows to generate syntax tree based on module source.
 ###### simple_module.py
 ```python
-import sys
-
-if len(sys.argv) <= 1:
-    raise RuntimeError
-
-print('\n'.join(sys.argv[1:]))
+def is_something(a: int) -> bool:
+    return a >= 2
 ```
 ###### run_ast.py
 ```python
@@ -149,7 +145,7 @@ with open(module_name) as fh:
     ast_root = ast.parse(fh.read(), filename=module_name)
 ```
 - - - -
-[TODO] Sample AST graph
+![](ast.png)
 - - - -
 #### AST-based checker
 - is fed with AST tree 
