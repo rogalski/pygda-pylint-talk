@@ -80,12 +80,8 @@ See [lexical analysis](https://docs.python.org/3.6/reference/lexical_analysis.ht
 - - - -
 ###### simple_module.py:
 ```python
-import sys
-
-if len(sys.argv) <= 1:
-    raise RuntimeError
-
-print('\n'.join(sys.argv[1:]))
+def is_something(a: int) -> bool:
+    return a >= 2
 ```
 ###### run_tokenize.py:
 ```python
@@ -99,8 +95,8 @@ with open(module_name) as fh:
 - - - -
 ###### Sample line from output:
 ```
-TokenInfo(type=53 (OP), string='(', start=(4, 6), 
-          end=(4, 7), line='if len(sys.argv) <= 1:\n')
+TokenInfo(type=53 (OP), string='>=', start=(2, 13), 
+          end=(2, 15), line='    return a >= 2\n')
 ```
 Each token has some some basic data associated with themselves:
 - token type
@@ -168,6 +164,7 @@ class IterableChecker(BaseChecker):
 ```
 - - - -
 #### Example
+###### bad_super_call.py
 ```python
 class MyClass(object):
     def __init__(self):
@@ -219,7 +216,7 @@ Algorithm:
 ### `astroid` inference examples
 [TODO]
 - - - -
-## Known problems
+## Known Pylint problems
 - - - -
 ### Flow analysis
 ###### inference_flow.py
@@ -318,11 +315,13 @@ globals().update(Flag.__members__) # (!!!)
 [PyCQA/pyflakes: A simple program which checks Python source files for errors.](https://github.com/PyCQA/pyflakes)
 - - - -
 ## Summary
-- Lorem
-- Ipsum
-- Dolor
-- Sit
-- Amet
+- Static analysis: definition and basic principles
+- Pylint checkers as a validation performing logic
+- Two basic types of checkers: token-based and AST-based
+- Tokens and ASTs are two different ways to look at source code
+- Token-based checker: looks at code formatting
+- AST-based checker: looks at code structure
+- Inference engine as a crucial part of reasonable analysis
 - - - -
 ### We still have a lot of issues unresolved
 ![](issues.png)
