@@ -63,7 +63,7 @@ Your code has been rated at 7.06/10 (previous run: 7.06/10, +0.00)
 #### Definition
 Checkers implement code verification logic. 
 
-- pluggable architecture (new checker is a `BaseChecker` subclass, registred before analysis start)
+- pluggable architecture (new checker is a `BaseChecker` subclass, registered before analysis start)
 - exact API depends on class of checks checker performs
 
 #### Two groups of checkers:
@@ -272,7 +272,7 @@ TODO
 - classes
 - - - -
 ### Transforms, `astroid.brain`
-- Interpreter core code is implemented in C - no source code to even start reasonsing about inference
+- Interpreter core code is implemented in C - no source code to even start reasoning about inference
 - Fancy code, even if implemented in Python, is also really tricky to infer 
 - We need handcrafted set of rules to improve inference engine
 - Two ways of doing it:
