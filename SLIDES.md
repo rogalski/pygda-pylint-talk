@@ -189,6 +189,8 @@ with open(module_name) as fh:
 - those method acts accordingly based on visited nodes
 
 ```python
+from pylint.checkers import BaseChecker
+
 class IterableChecker(BaseChecker):
     @check_messages('not-an-iterable')
     def visit_for(self, node):
@@ -442,6 +444,19 @@ List.list(ctx=None,
             <Const.int l.1 at 0x0>,
             <Const.int l.1 at 0x0>])
 [1, 2, 8]
+```
+- - - -
+###### Implementation
+```python
+def infer_subscript(self, context=None):
+    """Inference for subscripts
+
+    We're understanding if the index is a Const
+    or a slice, passing the result of inference
+    to the value's `getitem` method, which should
+    handle each supported index type accordingly.
+    """
+    pass  # long, and boring implementation here :)
 ```
 - - - -
 #### Understanding language constructs - summary
