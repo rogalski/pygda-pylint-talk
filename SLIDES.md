@@ -1,4 +1,4 @@
-![](pygda.png)
+![](assets/pygda.png)
 # Deep dive into Pylint
 ## Łukasz Rogalski
 - - - -
@@ -26,7 +26,7 @@
 - - - -
 ### Quite popular:
 [Search · pylint · GitHub](https://github.com/search?q=pylint&type=Code&utf8=%E2%9C%93)
-![](popularity.png)
+![](assets/popularity.png)
 ### How to install:
 ```bash
 $ pip3 install pylint
@@ -37,6 +37,9 @@ $ pylint my_package
 ```
 - - - -
 ### Sample output:
+<small>
+<small>
+
 ```shell
 No config file found, using default configuration
 ************* Module flow.graph
@@ -57,6 +60,9 @@ R:296, 4: Too many return statements (7/6) (too-many-return-statements)
 ------------------------------------------------------------------
 Your code has been rated at 7.06/10 (previous run: 7.06/10, +0.00)
 ```
+</small>
+</small>
+
 - - - -
 ## Checkers
 - - - -
@@ -94,7 +100,11 @@ with open(module_name) as fh:
 ```
 - - - -
 ###### Output
-```
+
+<small>
+<small>
+
+```python
 TokenInfo(type=1 (NAME), string='def', start=(1, 0), end=(1, 3), line='def is_something(a: int) -> bool:\n')
 TokenInfo(type=1 (NAME), string='is_something', start=(1, 4), end=(1, 16), line='def is_something(a: int) -> bool:\n')
 TokenInfo(type=53 (OP), string='(', start=(1, 16), end=(1, 17), line='def is_something(a: int) -> bool:\n')
@@ -115,6 +125,9 @@ TokenInfo(type=4 (NEWLINE), string='\n', start=(2, 17), end=(2, 18), line='    r
 TokenInfo(type=6 (DEDENT), string='', start=(3, 0), end=(3, 0), line='')
 TokenInfo(type=0 (ENDMARKER), string='', start=(3, 0), end=(3, 0), line='')
 ```
+</small>
+</small>
+
 - - - -
 ###### Sample line from output:
 ```
@@ -166,7 +179,8 @@ with open(module_name) as fh:
     ast_root = ast.parse(fh.read(), filename=module_name)
 ```
 - - - -
-![](ast.png)
+![](assets/ast.png)
+<sub>https://github.com/quantifiedcode/python-ast-visualizer</sub>
 - - - -
 #### AST-based checker
 - is fed with AST tree 
@@ -296,19 +310,144 @@ with open('simple_module.py') as fh:
 
 function_node = module_node.body[0]
 function_node.lookup('a')
-# (<FunctionDef.is_something l.1 at 0x106c70400>, [<AssignName.a l.1 at 0x106c5a128>])
+# (<FunctionDef.is_something l.1 at 0x106c70400>,
+#  [<AssignName.a l.1 at 0x106c5a128>])
 module_node.lookup('is_something')
-# (<Module l.0 at 0x106c70390>, [<FunctionDef.is_something l.1 at 0x106c70400>])
+# (<Module l.0 at 0x106c70390>, 
+#  [<FunctionDef.is_something l.1 at 0x106c70400>])
 module_node.lookup('bool')
-# (<Module.builtins l.0 at 0x1063abd68>, [<ClassDef.bool l.0 at 0x1068795c0>])
+# (<Module.builtins l.0 at 0x1063abd68>,
+#  [<ClassDef.bool l.0 at 0x1068795c0>])
 ```
 - - - -
-#### Understanding common language constructs
-TODO
-- `BoolOp`s
-- Slices
-- context managers
-- classes
+## Understanding common language constructs
+- - - -
+#### Method resolution order (MRO)
+###### mro_demo.py
+```python
+class A: pass
+class B: pass
+class C(A, B): pass
+class D(B): pass
+class E(D, C): pass
+print(E.mro())
+```
+
+###### Output
+```
+[<class '__main__.E'>, <class '__main__.D'>, 
+ <class '__main__.C'>, <class '__main__.A'>, 
+ <class '__main__.B'>, <class 'object'>]
+```
+
+- - - -
+###### run_mro_demo.py
+```python
+import astroid
+
+with open('mro_demo.py') as fh:
+    my_module = astroid.parse(fh.read())
+
+e_class = my_module.locals['E'][0]
+print(e_class.mro())
+```
+###### Output
+```
+[<ClassDef.E l.6 at 0x0>, <ClassDef.D l.5 at 0x0>, 
+ <ClassDef.C l.4 at 0x0>, <ClassDef.A l.2 at 0x0>, 
+ <ClassDef.B l.3 at 0x0>, <ClassDef.object l.0 at 0x0>]
+```
+- - - -
+#### Dunder methods
+###### dunders_demo.py
+```python
+class A:
+    def __init__(self, value):
+        self.value = value
+    def __add__(self, other):
+        return A(self.value + other.value)
+
+a1 = A(3)
+a2 = A(5)
+a3 = a1 + a2
+assert a3.value == 8
+
+class CtxMgr:
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+with CtxMgr() as obj:
+    pass
+```
+- - - -
+###### run_dunders_demo.py
+```python
+import astroid
+
+with open(dunders_demo.py) as fh:
+    my_module = astroid.parse(fh.read(),
+                              module_name='dunders')
+
+a3_node = my_module.locals['a3'][0]
+inferred_node = next(a3_node.infer())
+print('a3', inferred_node)
+
+obj_node = my_module.locals['obj'][0]
+inferred_node = next(obj_node.infer())
+print('obj', inferred_node)
+```
+###### Output
+```
+a3: Instance of dunders.A
+obj: Instance of dunders.CtxMgr
+```
+- - - -
+#### Slicing
+###### slicing_demo.py
+```python
+sequence = [1, 1, 2, 5, 8, 13]
+sequence2 = sequence[::2]
+sequence  #@
+sequence2  #@
+```
+###### run_slicing_demo.py
+```python
+import astroid
+
+with open(slicing_demo.py) as fh:
+    seq_node, seq2_node = astroid.extract_node(fh.read())
+
+inferred_seq1 = next(seq_node.infer())
+inferred_seq2 = next(seq2_node.infer())
+print(inferred_seq1)
+print([v.value for v in inferred_seq1.elts])
+print(inferred_seq2)
+print([v.value for v in inferred_seq2.elts])
+```
+- - - -
+###### Output
+```
+List.list(ctx=<Context.Load: 1>,
+          elts=[ <Const.int l.1 at 0x0>,
+            <Const.int l.1 at 0x0>,
+            <Const.int l.1 at 0x0>,
+            <Const.int l.1 at 0x0>,
+            <Const.int l.1 at 0x0>,
+            <Const.int l.1 at 0x0>])
+[1, 1, 2, 5, 8, 13]
+List.list(ctx=None,
+          elts=[ <Const.int l.1 at 0x0>,
+            <Const.int l.1 at 0x0>,
+            <Const.int l.1 at 0x0>])
+[1, 2, 8]
+```
+- - - -
+#### Understanding language constructs - summary
+- In-depth understanding of Python execution model
+- Helps a lot with catching errors
+
 - - - -
 ### Transforms, `astroid.brain`
 - Interpreter core code is implemented in C - no source code to even start reasoning about inference
@@ -326,7 +465,7 @@ MANAGER.register_transform(node_class,
 ```
 - - - -
 ### Custom inference tips
-- _quasi_ node transform - it sets internal attribute on AST node
+- _quasi_ node transform - it sets internal attribute on AST node,
 - this attribute is later on used for inferring actual values
 
 ```python
@@ -371,8 +510,8 @@ def infer_bool(node, context=None):
 ### Inference engine summary
 Inference engine is a _gift and the curse_ of Pylint.
 
-- Powerful inference engine means we can catch a lot of errors
-- Mistakes during inference causes much higher false positive ratio 
+- Powerful inference engine means we can catch more problems in code comparing to other tools
+- Unfortunately, mistakes during inference causes much higher false positive ratio 
 - - - -
 ## Known Pylint problems
 - - - -
@@ -458,7 +597,7 @@ globals().update(Flag.__members__) # (!!!)
 ### pycodestyle (formerly known as PEP8)
 > `pycodestyle` is a tool to check your Python code against some of the style conventions in PEP 8.  
 
-- No-AST policy (as lightweight as possible)
+- No-AST policy (as lightweight as possible), checks are based on tokenization and regular expression
 - Mostly limited to style-based checks
 
 [PyCQA/pycodestyle: Simple Python style checker in one Python file](https://github.com/PyCQA/pycodestyle)
@@ -484,7 +623,7 @@ globals().update(Flag.__members__) # (!!!)
 - Other analysis tools and it's comparision to Pylint
 - - - -
 ### We still have a lot of issues unresolved
-![](issues.png)
+![](assets/issues.png)
 **Pull requests are welcome!**
 - - - -
 # Thanks!
