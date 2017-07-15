@@ -1,5 +1,5 @@
 ![](pygda.png)
-# Pylint Deep Dive
+# Deep dive into Pylint
 ## Łukasz Rogalski
 - - - -
 ## Agenda
@@ -63,8 +63,8 @@ Your code has been rated at 7.06/10 (previous run: 7.06/10, +0.00)
 #### Definition
 Checkers implement code verification logic. 
 
-- pluggable architecture (new checker is a `BaseChecker` subclass, registered before analysis start)
-- exact API depends on class of checks checker performs
+- pluggable architecture (new checker is a `BaseChecker` subclass, registered in linter before analysis start)
+- exact API depends on type of checks checker performs
 
 #### Two groups of checkers:
 - token-based checkers
@@ -93,6 +93,29 @@ with open(module_name) as fh:
         print(token)
 ```
 - - - -
+###### Output
+```
+TokenInfo(type=1 (NAME), string='def', start=(1, 0), end=(1, 3), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=1 (NAME), string='is_something', start=(1, 4), end=(1, 16), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=53 (OP), string='(', start=(1, 16), end=(1, 17), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=1 (NAME), string='a', start=(1, 17), end=(1, 18), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=53 (OP), string=':', start=(1, 18), end=(1, 19), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=1 (NAME), string='int', start=(1, 20), end=(1, 23), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=53 (OP), string=')', start=(1, 23), end=(1, 24), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=53 (OP), string='->', start=(1, 25), end=(1, 27), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=1 (NAME), string='bool', start=(1, 28), end=(1, 32), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=53 (OP), string=':', start=(1, 32), end=(1, 33), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=4 (NEWLINE), string='\n', start=(1, 33), end=(1, 34), line='def is_something(a: int) -> bool:\n')
+TokenInfo(type=5 (INDENT), string='    ', start=(2, 0), end=(2, 4), line='    return a >= 2\n')
+TokenInfo(type=1 (NAME), string='return', start=(2, 4), end=(2, 10), line='    return a >= 2\n')
+TokenInfo(type=1 (NAME), string='a', start=(2, 11), end=(2, 12), line='    return a >= 2\n')
+TokenInfo(type=53 (OP), string='>=', start=(2, 13), end=(2, 15), line='    return a >= 2\n')
+TokenInfo(type=2 (NUMBER), string='2', start=(2, 16), end=(2, 17), line='    return a >= 2\n')
+TokenInfo(type=4 (NEWLINE), string='\n', start=(2, 17), end=(2, 18), line='    return a >= 2\n')
+TokenInfo(type=6 (DEDENT), string='', start=(3, 0), end=(3, 0), line='')
+TokenInfo(type=0 (ENDMARKER), string='', start=(3, 0), end=(3, 0), line='')
+```
+- - - -
 ###### Sample line from output:
 ```
 TokenInfo(type=53 (OP), string='>=', start=(2, 13), 
@@ -102,10 +125,12 @@ Each token has some some basic data associated with themselves:
 - token type
 - string value
 - row and column indices for beginning and end of token
-- actual line token comes from
+- actual line that token comes from
 - - - -
 #### Checker API
 ```python
+from pylint.checkers import BaseChecker
+
 class BaseTokenChecker(BaseChecker):
     """Base class for checkers that want to have access to the token stream."""
 
@@ -182,7 +207,7 @@ class DerivedClass2(MyClass):
         super(self.__class__, self).__init__()
         self.x = 2
 ```
-- Invalid when `DerivedClass1` or `DerivedClass2` is subclassed
+- Invalid when `DerivedClass1` or `DerivedClass2` is subclassed!
 - Infinite recursion on instantiation of subclass
 - - - -
 #### Let's implement a checker for this case!
@@ -190,9 +215,9 @@ Algorithm:
 1. When `FunctionDef` node is visited
 2. And this node is a method
 3. Find all `Call` nodes that belong to this method
-4. If called function is a `Name` node and it's value is **super**
+4. If called function is a `Name` node and it's value is `"super"`
 5. Check first argument of called function:
-   * If first argument is `Call` node and called function is a `Name` with value **type** and it's single argument is first argument of method (`self`) or 
+   * If first argument is `Call` node and called function is a `Name` with value `"type"` and it's single argument is first argument of method (`self`) or 
    * If first argument is an `Attribute` access, where accessed member is `__class__` and object is first argument of method (`self`)
 6. Emit a message 
 - - - -
@@ -262,12 +287,26 @@ print(return_node in children)
 ```
 - - - -
 #### Naming scopes
-TODO: MODULE / FUNC / NAME LOOKUP
+###### run_naming_scopes.py (1)
+```python
+import astroid
+
+with open('simple_module.py') as fh:
+    module_node = astroid.parse(fh.read())
+
+function_node = module_node.body[0]
+function_node.lookup('a')
+# (<FunctionDef.is_something l.1 at 0x106c70400>, [<AssignName.a l.1 at 0x106c5a128>])
+module_node.lookup('is_something')
+# (<Module l.0 at 0x106c70390>, [<FunctionDef.is_something l.1 at 0x106c70400>])
+module_node.lookup('bool')
+# (<Module.builtins l.0 at 0x1063abd68>, [<ClassDef.bool l.0 at 0x1068795c0>])
+```
 - - - -
-#### Understand common language constructs
+#### Understanding common language constructs
 TODO
-- boolops
-- slices
+- `BoolOp`s
+- Slices
 - context managers
 - classes
 - - - -
@@ -278,11 +317,12 @@ TODO
 - Two ways of doing it:
   - custom inference tips
   - node transforms
-- easy API for registering new transforms:
+- Easy API for registering new transforms:
+
 ```python
-MANAGER.register_transform(<node_class>, 
-                           <transform_callable>,
-                           <predicate>)
+MANAGER.register_transform(node_class,
+                           transform_callable,
+                           predicate)
 ```
 - - - -
 ### Custom inference tips
@@ -327,6 +367,12 @@ def infer_bool(node, context=None):
 - modification of AST, which actually modifies output tree
 - handcrafted rules for "tricky" modules (`enum`, `namedtuple`, `six`, `typing` to name a few)
 - example: add extra names to module scope (if namespace is populated dynamically)
+- - - -
+### Inference engine summary
+Inference engine is a _gift and the curse_ of Pylint.
+
+- Powerful inference engine means we can catch a lot of errors
+- Mistakes during inference causes much higher false positive ratio 
 - - - -
 ## Known Pylint problems
 - - - -
