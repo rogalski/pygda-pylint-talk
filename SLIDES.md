@@ -46,32 +46,119 @@ $ pylint my_package
 
 ---
 
-### Sample output:
-<small>
-<small>
+## What it can do?
+
+---
+
+#### Catch actual errors (ex1_errors.py)
+```python
+# pylint: disable=R,C
+import sys
+
+
+def mispellings():
+    my_str = "Hello, PyGDA!"
+    print(my_st)  # misspelled variable
+    sys.stout.write(my_str)  # misspelled attribute
+
+
+def bad_except_order():
+    try:
+        return func()
+    except ValueError:
+        pass
+    except UnicodeError:
+        # never reached, superclass is caught first
+        pass
+```
+
+###### Output
+```shell
+$ pylint ex1_errors.py 
+No config file found, using default configuration
+************* Module ex1_errors
+E:  8,10: Undefined variable 'my_st' (undefined-variable)
+E:  9, 4: Module 'sys' has no 'stout' member; maybe 'stdout'? (no-member)
+E: 17,11: Bad except clauses order (ValueError is an ancestor class of UnicodeError) (bad-except-order)
+```
+
+---
+
+#### Warn about common pitfalls
+```python
+# pylint: disable=R,C
+def mutable_default_arg(sequence=[]):
+    pass
+
+
+class Class:
+    def __init__(self, x):
+        self.x = x
+
+
+class Subclass(Class):
+    def __init__(self, x):
+        self.y = x + 1
+```
+
+###### Output
 
 ```shell
+$ pylint ex2_warnings.py 
 No config file found, using default configuration
-************* Module flow.graph
-C: 64, 0: Line too long (102/100) (line-too-long)
-C:164, 0: Wrong continued indentation (add 1 space).
-                                    isinstance(node.statement, ImplicitReturnStmt)), None)
-                                    ^| (bad-continuation)
-C:  1, 0: Missing module docstring (missing-docstring)
-C:  9, 0: Missing class docstring (missing-docstring)
-W: 21, 4: Useless super delegation in method '__init__' (useless-super-delegation)
-R: 20, 0: Too few public methods (0/2) (too-few-public-methods)
-W: 46, 0: Dangerous default value [] as argument (dangerous-default-value)
-W: 46,24: Unused argument 'ast_node' (unused-argument)
-R: 76, 4: Unnecessary "else" after "return" (no-else-return)
-W:132, 0: Dangerous default value [] as argument (dangerous-default-value)
-R:296, 4: Too many return statements (7/6) (too-many-return-statements)
-
-------------------------------------------------------------------
-Your code has been rated at 7.06/10 (previous run: 7.06/10, +0.00)
+************* Module ex2_warnings
+W:  2, 0: Dangerous default value [] as argument (dangerous-default-value)
+W:  2,24: Unused argument 'sequence' (unused-argument)
+W: 12, 4: __init__ method from base class 'Class' is not called (super-init-not-called)
 ```
-</small>
-</small>
+
+---
+
+#### Enforce code style (e.g. naming convention, docstrings, code complexity)
+```python
+def whyDontuseCamelCase(argument):
+    return argument > 2
+
+
+def reallyComplexFunction(arg1, arg2, arg3, arg4, arg5):
+    """Fairly complicated function that returns arbitrary integer"""
+    some_value = whyDontuseCamelCase(arg1)
+    if some_value:
+        return some_value
+    if arg1:
+        if arg2 and arg3:
+            return 1
+        elif arg2 and not arg3:
+            return 2
+        return 3
+    elif arg4 and arg5:
+        return 4
+    return 5
+```
+
+---
+
+###### Code style: output
+```shell
+$ pylint --load-plugins=pylint.extensions.mccabe --max-complexity=5 ex3_convention_refactor.py
+No config file found, using default configuration
+************* Module ex3_convention_refactor
+C:  1, 0: Missing module docstring (missing-docstring)
+R:  5, 0: 'reallyComplexFunction' is too complex. The McCabe rating is 6 (too-complex)
+C:  1, 0: Invalid function name "whyDontuseCamelCase" (invalid-name)
+C:  1, 0: Missing function docstring (missing-docstring)
+C:  5, 0: Invalid function name "reallyComplexFunction" (invalid-name)
+```
+
+---
+
+#### Using Pylint - summary
+- Fully configurable, all checks may be explicitly disabled / enabled (globally for project, locally for module, code block or individual statement) 
+- Some of checks (e.g. naming convention) are parametrized and may be adjusted to accommodate for your project rules
+
+#### Is this all?
+- I'm not here to tell about _how to use_ Pylint.
+- Let's dive into implementation!
 
 ---
 
@@ -79,13 +166,14 @@ Your code has been rated at 7.06/10 (previous run: 7.06/10, +0.00)
 
 ---
 
-#### Definition
-Checkers implement code verification logic. 
+## Checker
+Checker implements code verification logic. 
 
 - pluggable architecture (new checker is a `BaseChecker` subclass, registered in linter before analysis start)
 - exact API depends on type of checks checker performs
 
-#### Two groups of checkers:
+
+### Two groups of checkers:
 - token-based checkers
 - AST-based checkers
 
@@ -120,8 +208,6 @@ with open(module_name) as fh:
 
 ###### Output
 
-<small>
-
 ```python
 TokenInfo(type=1 (NAME), string='def', start=(1, 0), end=(1, 3), line='def is_something(a: int) -> bool:\n')
 TokenInfo(type=1 (NAME), string='is_something', start=(1, 4), end=(1, 16), line='def is_something(a: int) -> bool:\n')
@@ -143,7 +229,6 @@ TokenInfo(type=4 (NEWLINE), string='\n', start=(2, 17), end=(2, 18), line='    r
 TokenInfo(type=6 (DEDENT), string='', start=(3, 0), end=(3, 0), line='')
 TokenInfo(type=0 (ENDMARKER), string='', start=(3, 0), end=(3, 0), line='')
 ```
-</small>
 
 ---
 
@@ -160,7 +245,7 @@ Each token has some some basic data associated with themselves:
 
 ---
 
-#### Checker API
+#### Token Checker API
 ```python
 from pylint.checkers import BaseChecker
 
@@ -216,25 +301,9 @@ with open(module_name) as fh:
 - invokes `visit_{nodeclass}` method
 - those method acts accordingly based on visited nodes
 
-```python
-from pylint.checkers import BaseChecker
-
-class IterableChecker(BaseChecker):
-    @check_messages('not-an-iterable')
-    def visit_for(self, node):
-        self._check_iterable(node.iter)
-
-    @check_messages('not-an-iterable', 'not-a-mapping')
-    def visit_call(self, node):
-        for stararg in node.starargs:
-            self._check_iterable(stararg.value)
-        for kwarg in node.kwargs:
-            self._check_mapping(kwarg.value)
-```
-
 ---
 
-#### Example
+#### Check example
 ###### bad_super_call.py
 ```python
 class MyClass(object):
@@ -253,21 +322,20 @@ class DerivedClass2(MyClass):
         super(self.__class__, self).__init__()
         self.x = 2
 ```
+
 - Invalid when `DerivedClass1` or `DerivedClass2` is subclassed!
 - Infinite recursion on instantiation of subclass
 
 ---
 
 #### Let's implement a checker for this case!
-Algorithm:
-1. When `FunctionDef` node is visited
-2. And this node is a method
-3. Find all `Call` nodes that belong to this method
-4. If called function is a `Name` node and it's value is `"super"`
-5. Check first argument of called function:
-   * If first argument is `Call` node and called function is a `Name` with value `"type"` and it's single argument is first argument of method (`self`) or 
+1. When `FunctionDef` node is visited (and node is a method)
+2. Find all `Call` nodes that belong to this method
+3. If called node is a `Name` node and it's value is `"super"`
+4. Check first argument of called function:
+   * If first argument is `Call` node and called node is a `Name` with value `"type"` and it's single argument is first argument of method (`self`) or 
    * If first argument is an `Attribute` access, where accessed member is `__class__` and object is first argument of method (`self`)
-6. Emit a message
+5. Emit a message
 
 [Code essentially does the same operation as pseudocode above](https://github.com/PyCQA/pylint/blob/master/pylint/checkers/newstyle.py#L103) - you have to trust me on this one.
 
@@ -287,6 +355,7 @@ Algorithm:
 ### Problem statement
 - both token-based and AST-based checkers knows only about structure of the source code (token-based: how the code was written, AST-based: how the code was parsed)
 - it’s desirable to have actual knowledge about execution (*without* running the code)
+
 ### Solution
 - astroid (AST on steroids) - [PyCQA/astroid: A common base representation of python source code for pylint and other projects](https://github.com/PyCQA/astroid)
 
@@ -418,7 +487,7 @@ print(e_class.mro())
 
 ---
 
-#### Metaclasses
+### Metaclasses
 ###### mcs_demo.py
 ```python
 class Meta(type):  #@
@@ -430,8 +499,6 @@ class A:  #@
 class B(metaclass=Meta): #@
     pass
 ```
-
----
 
 ###### run_mcs_demo.py
 ```python
@@ -451,7 +518,7 @@ assert b_clsdef.metaclass() is meta_clsdef
 It's known that most of Python syntax is sugar over _dunder methods_.
 When we can understand MRO and metaclasses of inspected instance, we can easily do look-up of correct dunder method for inference purposes.
 
-- Boolean statements (`and`, `or` and `nor`): `__bool__` (Python 3.x) / `__nonzero__` (Python 2.x)
+- Boolean statements (`and`, `or` and `not`): `__bool__` (Python 3.x) / `__nonzero__` (Python 2.x)
 - Binary operations: (`&`, `|`, `%` etc.): `__and__`, `__or__`, `__mod__` etc.
 - Indexing: `__getitem__` (including support for slices)
 - Context managers: `__enter__`, `__exit__`
@@ -554,14 +621,14 @@ List.list(ctx=None,
 
 #### Understanding language constructs - summary
 - In-depth understanding of Python execution model
-- Helps a lot with catching errors
+- Better understanding means more possibilites for catching code errors
 
 ---
 
 ### Transforms, `astroid.brain`
 - Interpreter core code is implemented in C - no source code to even start reasoning about inference
-- Fancy code, even if implemented in Python, is also really tricky to infer 
-- We need handcrafted set of rules to improve inference engine
+- Fancy code, even if implemented in Python, is also difficult to infer 
+- We use handcrafted set of rules to improve inference engine
 - Two ways of doing it:
   - custom inference tips
   - node transforms
@@ -577,7 +644,7 @@ MANAGER.register_transform(node_class,
 
 ### Custom inference tips
 - _quasi_ node transform - it sets internal attribute on AST node
-- this attribute is later on used for inferring actual values
+- this attribute is later used for inferring actual values
 
 ```python
 def inference_tip(infer_function):
@@ -618,7 +685,7 @@ def infer_bool(node, context=None):
 ---
 
 ### Node transforms
-- modification of AST, which actually modifies output tree
+- mutation of AST, which actually modifies final tree
 - handcrafted rules for "tricky" modules (`enum`, `namedtuple`, `six`, `typing` to name a few)
 - example: add extra names to module scope (if namespace is populated dynamically)
 
@@ -665,10 +732,12 @@ for value in node.infer():
 Const.NoneType(value=None)
 Const.int(value=6)
 ```
+
 ###### Observations
-- We know value passed to function; this value is `False` in boolean context, therefore `if` branch is not taken
+- We know value passed to function; this value is `3` which is `True` in boolean context, therefore `if` branch is not taken
 - Even in this simple example we are still deducing that return value *may possibly* be `None` (even though it's not possible)
 - Important when flow control statements are used (conditionals, exceptions, `continue`/`break` on loops etc.)
+
 ###### Conclusions
 - As of today, Pylint default config would avoid to emit warnings in case of ambiguity
 - Workaround, not a solution...
@@ -767,8 +836,8 @@ globals().update(Flag.__members__) # (!!!)
 
 ---
 
-# Acknowledges
-- **Krzysztof Czapla** - review, lots of valuable comments
+# Acknowledges (alphabethical order)
+- [**Krzysztof Czapla**](https://github.com/kczapla) - slides review, lots of valuable comments
 
 ---
 

@@ -125,7 +125,7 @@ class GraphRenderer:
         # 'fontcolor': 'white',
         # 'bgcolor': '#333333',
         'margin': '0',
-        'ratio': '0.85'
+        'ratio': '0.75'
     }
 
     nodeattrs = {
