@@ -421,12 +421,37 @@ print(e_class.mro())
 ---
 
 #### Metaclasses
+###### mcs_demo.py
+```python
+class Meta(type):  #@
+    pass
+
+class A:  #@
+    pass
+
+class B(metaclass=Meta): #@
+    pass
+```
+
+---
+
+###### run_mcs_demo.py
+```python
+import astroid
+
+with open('mcs_demo.py') as fh:
+    nodes = astroid.extract_node(fh.read())
+
+meta_clsdef, a_clsdef, b_clsdef = nodes
+assert a_clsdef.metaclass() is None
+assert b_clsdef.metaclass() is meta_clsdef
+```
 
 ---
 
 #### Understanding rest of syntax
 It's known that most of Python syntax is sugar over _dunder methods_.
-When we can understamd MRO and metaclasses of inspected instance, we can easily do look-up of correct dunder method for inference purposes.
+When we can understand MRO and metaclasses of inspected instance, we can easily do look-up of correct dunder method for inference purposes.
 
 - Boolean statements (`and`, `or` and `nor`): `__bool__` (Python 3.x) / `__nonzero__` (Python 2.x)
 - Binary operations: (`&`, `|`, `%` etc.): `__and__`, `__or__`, `__mod__` etc.
@@ -529,25 +554,9 @@ List.list(ctx=None,
 
 ---
 
-###### Implementation
-```python
-def infer_subscript(self, context=None):
-    """Inference for subscripts
-
-    We're understanding if the index is a Const
-    or a slice, passing the result of inference
-    to the value's `getitem` method, which should
-    handle each supported index type accordingly.
-    """
-    pass  # long, and boring implementation here :)
-```
-
----
-
 #### Understanding language constructs - summary
 - In-depth understanding of Python execution model
 - Helps a lot with catching errors
-
 
 ---
 
@@ -569,7 +578,7 @@ MANAGER.register_transform(node_class,
 ---
 
 ### Custom inference tips
-- _quasi_ node transform - it sets internal attribute on AST node,
+- _quasi_ node transform - it sets internal attribute on AST node
 - this attribute is later on used for inferring actual values
 
 ```python
