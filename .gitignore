@@ -97,3 +97,6 @@ ENV/
 
 # IntelliJ
 .idea/
+
+# *.pdf exports
+*.pdf
