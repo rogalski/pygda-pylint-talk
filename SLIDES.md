@@ -121,7 +121,6 @@ with open(module_name) as fh:
 ###### Output
 
 <small>
-<small>
 
 ```python
 TokenInfo(type=1 (NAME), string='def', start=(1, 0), end=(1, 3), line='def is_something(a: int) -> bool:\n')
@@ -144,7 +143,6 @@ TokenInfo(type=4 (NEWLINE), string='\n', start=(2, 17), end=(2, 18), line='    r
 TokenInfo(type=6 (DEDENT), string='', start=(3, 0), end=(3, 0), line='')
 TokenInfo(type=0 (ENDMARKER), string='', start=(3, 0), end=(3, 0), line='')
 ```
-</small>
 </small>
 
 ---
@@ -639,7 +637,7 @@ Inference engine is a _gift and the curse_ of Pylint.
 ---
 
 ### Flow analysis
-###### inference_flow.py
+###### flow_inference.py
 ```python
 def func(arg):
     if not arg:
@@ -653,7 +651,7 @@ x  #@
 ```python
 import astroid
 
-with open('inference_flow.py') as fh:
+with open('flow_inference.py') as fh:
     node = astroid.extract_node(fh.read())
 
 for value in node.infer():
