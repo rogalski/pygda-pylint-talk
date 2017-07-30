@@ -152,9 +152,10 @@ C:  5, 0: Invalid function name "reallyComplexFunction" (invalid-name)
 
 ---
 
-#### Using Pylint - summary
+#### Configurability
 - Fully configurable, all checks may be explicitly disabled / enabled (globally for project, locally for module, code block or individual statement) 
 - Some of checks (e.g. naming convention) are parametrized and may be adjusted to accommodate for your project rules
+- Typically single configuration file for project (`pylintrc`) with bunch of local disables (if needed)
 
 #### Is this all?
 - I'm not here to tell about _how to use_ Pylint.
@@ -162,11 +163,13 @@ C:  5, 0: Invalid function name "reallyComplexFunction" (invalid-name)
 
 ---
 
-## Checkers
+## Two complementary components
+- checkers
+- inference engine
 
 ---
 
-## Checker
+## Checkers
 Checker implements code verification logic. 
 
 - pluggable architecture (new checker is a `BaseChecker` subclass, registered in linter before analysis start)
@@ -237,7 +240,7 @@ TokenInfo(type=0 (ENDMARKER), string='', start=(3, 0), end=(3, 0), line='')
 TokenInfo(type=53 (OP), string='>=', start=(2, 13), 
           end=(2, 15), line='    return a >= 2\n')
 ```
-Each token has some some basic data associated with themselves:
+Each token has some some basic data associated with itself:
 - token type
 - string value
 - row and column indices for beginning and end of token
@@ -261,7 +264,7 @@ class BaseTokenChecker(BaseChecker):
 - mixed indentation (tabs/spaces)
 - etc.
 
-Essentially, those checks rely on information which are missing from abstract syntax tree.
+Essentially, those checks rely on information which are missing from syntax tree (syntax trees does not hold code formatting information).
 
 ---
 
@@ -337,13 +340,13 @@ class DerivedClass2(MyClass):
    * If first argument is an `Attribute` access, where accessed member is `__class__` and object is first argument of method (`self`)
 5. Emit a message
 
-[Code essentially does the same operation as pseudocode above](https://github.com/PyCQA/pylint/blob/master/pylint/checkers/newstyle.py#L103) - you have to trust me on this one.
+[Code essentially does the same operation as pseudocode above](https://github.com/PyCQA/pylint/blob/master/pylint/checkers/newstyle.py#L103) - too long for slides, you have to trust me on this one 😉.
 
 ---
 
 #### Obviously not *that* easy
 1. `FunctionDef` AST node is shared between methods and functions - how to differentiate between them?
-2. We don't want to walk through FunctionDef body and collect `Call` nodes blindly - sometimes they belong to another scope (e.g. another function defined in method)
+2. We don't want to walk through `FunctionDef` body and collect `Call` nodes blindly - sometimes they belong to another scope (e.g. nested functions defined in method)
 3. We implicitly assumed that `super` and `type` names are bound to original built-in functions. What if they are not?
 
 ---
@@ -403,7 +406,8 @@ print(assign_node.parent)
 ```
 
 ---
- 
+
+###### run_parent_children.py (2)
 ```python
 print(function_node)
 # FunctionDef.func(name='func',
@@ -422,7 +426,8 @@ print(return_node in children)
 ---
 
 #### Naming scopes
-###### run_naming_scopes.py (1)
+With node parent/children relationship of nodes and knowledge of scoping rules for different node classes, we are able to resolve name lookup rules.
+###### run_naming_scopes.py
 ```python
 import astroid
 
@@ -439,6 +444,10 @@ print(module_node.lookup('is_something'))
 print(module_node.lookup('bool'))
 # (<Module.builtins l.0 at 0x1063abd68>,
 #  [<ClassDef.bool l.0 at 0x1068795c0>])
+```
+Essentially:
+```python
+node.lookup(name) == (scope_where_name_is_defined, list_of_assign_statements)
 ```
 
 ---
@@ -645,6 +654,7 @@ MANAGER.register_transform(node_class,
 ### Custom inference tips
 - _quasi_ node transform - it sets internal attribute on AST node
 - this attribute is later used for inferring actual values
+- for this transform `code → AST → code` conversion yields same output code as input code (minus formatting)
 
 ```python
 def inference_tip(infer_function):
@@ -685,9 +695,37 @@ def infer_bool(node, context=None):
 ---
 
 ### Node transforms
-- mutation of AST, which actually modifies final tree
+- mutation of AST, which actually changes tree (`code → AST → code` conversion yields different output code)
 - handcrafted rules for "tricky" modules (`enum`, `namedtuple`, `six`, `typing` to name a few)
 - example: add extra names to module scope (if namespace is populated dynamically)
+
+---
+
+### Node transforms demo
+
+```python
+def _hashlib_transform():
+    template = '''
+    class %(name)s(object):
+      def __init__(self, value=''): pass
+      def digest(self):
+        return %(digest)s
+      def copy(self):
+        return self
+      def update(self, value): pass
+      def hexdigest(self):
+        return ''
+      ...  # trimmed
+    '''  # template of known API of hashlib library
+    algorithms = ('md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512')
+    classes = "".join(
+        template % {'name': hashfunc, 'digest': 'b""' if six.PY3 else '""'}
+        for hashfunc in algorithms)
+    return astroid.parse(classes)
+
+
+astroid.register_module_extender(astroid.MANAGER, 'hashlib', _hashlib_transform)
+```
 
 ---
 
@@ -695,7 +733,7 @@ def infer_bool(node, context=None):
 Inference engine is a _gift and the curse_ of Pylint.
 
 - Powerful inference engine means we can catch more problems in code comparing to other tools
-- Unfortunately, mistakes during inference causes much higher false positive ratio 
+- Unfortunately, mistakes during inference causes much higher false positive ratio
 
 ---
 
@@ -725,20 +763,20 @@ for value in node.infer():
     print(value)
 ```
 
----
-
 ###### Output
 ```
 Const.NoneType(value=None)
 Const.int(value=6)
 ```
 
-###### Observations
+---
+
+#### Observations
 - We know value passed to function; this value is `3` which is `True` in boolean context, therefore `if` branch is not taken
-- Even in this simple example we are still deducing that return value *may possibly* be `None` (even though it's not possible)
+- Even in this simple example we are still deducing that return value *may possibly* be `None`
 - Important when flow control statements are used (conditionals, exceptions, `continue`/`break` on loops etc.)
 
-###### Conclusions
+#### Conclusions
 - As of today, Pylint default config would avoid to emit warnings in case of ambiguity
 - Workaround, not a solution...
 - Needs proper flow control support
@@ -792,6 +830,16 @@ globals().update(Flag.__members__) # (!!!)
 
 ---
 
+#### Lack of support for [PEP484](https://www.python.org/dev/peps/pep-0484/) (type hints) 
+Possible scenarios:
+- raising a warning when inferred value does not match type annotation
+- assuming type from type annotation when inference engine fail
+- re-use of [typeshed](https://github.com/python/typeshed) data could vastly reduce size of `astroid.brain`
+
+Very promising - unfortunately not there yet.
+
+---
+
 ## Alternatives
 
 ---
@@ -822,9 +870,6 @@ globals().update(Flag.__members__) # (!!!)
 - Static analysis: definition and basic principles
 - Pylint checkers as a validation performing logic
 - Two basic types of checkers: token-based and AST-based
-- Tokens and ASTs are two different ways to look at source code
-- Token-based checker: looks at code formatting
-- AST-based checker: looks at code structure
 - Inference engine as a crucial part of analysis
 - Other analysis tools and it's comparision to Pylint
 
@@ -836,7 +881,7 @@ globals().update(Flag.__members__) # (!!!)
 
 ---
 
-# Acknowledges (alphabethical order)
+# Acknowledges
 - [**Krzysztof Czapla**](https://github.com/kczapla) - slides review, lots of valuable comments
 
 ---
